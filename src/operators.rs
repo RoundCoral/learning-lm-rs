@@ -71,25 +71,66 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm，计算前做一些必要的检查会帮助你后续调试")
+    let last_dim = y.shape()[y.shape().len() - 1];
+    let len = y.size();
+    let x_ = x.data();
+    let w_ = w.data();
+    let y_ = unsafe { y.data_mut() };
+    let mut i = 0;
+    while i < len {
+        // 计算 RMS = sqrt((1 / n) * Σ(x[j]^2) + epsilon)
+        let sum_of_squares: f32 = (0..last_dim).map(|j| x_[i + j] * x_[i + j]).sum();
+        let rms = ((sum_of_squares / last_dim as f32) + epsilon).sqrt();
+        // 计算 y[j] = (x[j] / RMS) * w[j]
+        (0..last_dim).for_each(|j| y_[i + j] = (x_[i + j] / rms) * w_[j]);
+        i += last_dim;
+    }
+}
+
+pub fn add(y: &mut Tensor<f32>, x: &Tensor<f32>) {
+    let len = y.size();
+    assert!(len == x.size());
+    let y_ = unsafe { y.data_mut() };
+    let x_ = x.data();
+    for i in 0..len {
+        y_[i] += x_[i];
+    }
 }
 
 // y = silu(x) * y
 // hint: this is an element-wise operation
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    let len = y.size();
+    assert!(len == x.size());
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
+    let _y = unsafe { y.data_mut() };
+    let _x = x.data();
 
-    todo!("实现 silu，这里给了一些前期准备工作的提示，你可以参考")
+    for i in 0..len {
+        _y[i] = _x[i] * (1. / (1. + (-_x[i]).exp())) * _y[i];
+    }
 }
 
 // C = beta * C + alpha * A @ B^T
 // hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb，计算前做一些必要的检查会帮助你后续调试");
+     // 检查输入形状是否匹配
+     let (m, k1) = (a.shape()[0], b.shape()[1]);
+     let (k2, n) = (a.shape()[1], b.shape()[0]);
+     assert_eq!(k1, k2);
+     assert_eq!(c.shape()[0], m);
+     assert_eq!(c.shape()[1], n);
+     // 初始化张量
+     let mut c_ = unsafe { c.data_mut() };
+     let a_ = a.data();
+     let b_ = b.data();
+
+     for i in 0..m {
+         for j in 0..n {
+             let sum:f32 = (0..k1).map(|k| a_[i * k1 + k] * b_[j * k1 + k]).sum();
+             c_[i * n + j] = beta * c_[i * n + j] + alpha * sum;
+         }
+     }
 }
 
 // Dot product of two tensors (treated as vectors)
